@@ -1,0 +1,62 @@
+---
+- hosts: localhost
+
+  tasks:
+  - name: Adding repo ffmpeg
+    apt_repository:
+      repo='ppa:kirillshkrogalev/ffmpeg-next'
+      state=present
+      update_cache=yes
+    become: true
+
+  - name: install motion, ffmpeg, v4l-utils
+    apt:
+      name={{ item }}
+      state=latest
+    with_items:
+      - motion
+      - ffmpeg
+      - v4l-utils
+    become: true
+
+  - name: install python-pip python-dev curl libssl-dev libcurl4-openssl-dev libjpeg-dev
+    apt:
+      name={{ item }}
+    with_items:
+      - python-pip
+      - python-dev
+      - curl
+      - libssl-dev
+      - libcurl4-openssl-dev
+      - libjpeg-dev
+    become: true
+
+  - name: install motioneye
+    pip:
+      name=motioneye
+      state=latest
+    become: true
+
+  - name: create config directory
+    file:
+      path=/etc/motioneye
+      state=directory
+    become: true
+
+  - name: copy sample config
+    copy:
+      src=/usr/local/share/motioneye/extra/motioneye.conf.sample
+      dest=/etc/motioneye/motioneye.conf
+    become: true
+
+  - name: create media directory
+    file:
+      path=/var/lib/motioneye 
+      state=directory
+    become: true
+
+  - name: copy init script
+    copy:
+      src=/usr/local/share/motioneye/extra/motioneye.systemd-unit-local
+      dest=/etc/systemd/system/motioneye.service
+    become: true
