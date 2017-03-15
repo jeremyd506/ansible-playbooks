@@ -1,0 +1,102 @@
+---
+
+- hosts: cameras
+
+  tasks:
+
+  - name: add wheezy repo
+    apt_repository:
+      repo: deb http://mirrordirector.raspbian.org/raspbian/ wheezy main
+      state: present
+    become: yes
+
+  - name: apt-get update
+    apt:
+      update_cache: yes
+    become: yes
+
+  - name: apt-get upgrade
+    apt:
+      upgrade: dist
+    become: yes
+
+  - name: install packages
+    apt:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - v4l-utils
+      - wget
+      - python-pip
+      - python-dev
+      - curl
+      - libssl-dev
+      - libcurl4-openssl-dev
+      - libjpeg-dev
+      - libx264-142
+      - libavcodec56
+      - libavformat56
+      - libmysqlclient18
+      - libswscale3
+      - libpq5
+    become: yes
+
+  - name: download ffmpeg
+    get_url:
+      url: https://github.com/ccrisan/motioneye/wiki/precompiled/ffmpeg_3.1.1-1_armhf.deb
+      dest: /tmp
+
+  - name: install ffmpeg
+    shell: dpkg -i /tmp/ffmpeg_3.1.1-1_armhf.deb
+    become: yes
+
+  - name: download motion
+    get_url:
+      url: https://github.com/Motion-Project/motion/releases/download/release-4.0.1/pi_jessie_motion_4.0.1-1_armhf.deb
+      dest: /tmp
+
+  - name: install motion
+    shell: dpkg -i /tmp/pi_jessie_motion_4.0.1-1_armhf.deb
+    become: yes
+
+  - name: install motioneye
+    pip:
+      name: motioneye
+      state: present
+    become: yes
+
+  - name: prepare config dir
+    file:
+     path: /etc/motioneye
+     state: directory
+    become: yes
+  
+  - name: copy config
+    shell: cp /usr/local/share/motioneye/extra/motioneye.conf.sample /etc/motioneye/motioneye.conf
+    become: yes
+
+  - name: create media directory
+    file:
+      path: /var/lib/motioneye
+      state: directory
+    become: yes
+
+  - name: add init script to run at start
+    shell: cp /usr/local/share/motioneye/extra/motioneye.systemd-unit-local /etc/systemd/system/motioneye.service
+    become: yes
+
+  - name: run modprobe
+    shell: modprobe bcm2835-v4l2
+    become: yes
+ 
+  - name: reload dameon
+    shell: systemctl daemon-reload
+    become: yes
+
+  - name: enable motioneye
+    shell: systemctl enable motioneye
+    become: yes
+
+  - name: start motioneye
+    shell: systemctl start motioneye
+    become: yes
