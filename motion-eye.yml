@@ -45,19 +45,23 @@
     get_url:
       url: https://github.com/ccrisan/motioneye/wiki/precompiled/ffmpeg_3.1.1-1_armhf.deb
       dest: /tmp
+    register: ffmpeg
 
   - name: install ffmpeg
     shell: dpkg -i /tmp/ffmpeg_3.1.1-1_armhf.deb
     become: yes
+    when: ffmpeg.changed == true
 
   - name: download motion
     get_url:
       url: https://github.com/Motion-Project/motion/releases/download/release-4.0.1/pi_jessie_motion_4.0.1-1_armhf.deb
       dest: /tmp
+    register: motion
 
   - name: install motion
     shell: dpkg -i /tmp/pi_jessie_motion_4.0.1-1_armhf.deb
     become: yes
+    when: motion.changed == true
 
   - name: install motioneye
     pip:
@@ -70,10 +74,16 @@
      path: /etc/motioneye
      state: directory
     become: yes
-  
+
+  - name: check if motioneye.conf exists
+    stat: 
+      path: /etc/motioneye/motioneye.conf
+    register: stat_motioneye
+
   - name: copy config
     shell: cp /usr/local/share/motioneye/extra/motioneye.conf.sample /etc/motioneye/motioneye.conf
     become: yes
+    when: stat_motioneye.stat.exists == false
 
   - name: create media directory
     file:
@@ -81,9 +91,15 @@
       state: directory
     become: yes
 
+  - name: check if init exists
+    stat:
+      path: /etc/systemd/system/motioneye.service
+    register: stat_service
+
   - name: add init script to run at start
     shell: cp /usr/local/share/motioneye/extra/motioneye.systemd-unit-local /etc/systemd/system/motioneye.service
     become: yes
+    when: stat_service.stat.exists == false
 
   - name: run modprobe
     shell: modprobe bcm2835-v4l2
