@@ -62,7 +62,7 @@
       ec2_metric_alarm:
         state: present
         region: us-west-2
-        name: "CPU-Utilizaiton-{{ansible_ec2_instance_id}}"
+        name: "CPU-Utilization-{{ansible_ec2_instance_id}}"
         metric: "CPUUtilization"
         namespace: "AWS/EC2"
         statistic: Average
