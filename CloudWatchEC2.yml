@@ -1,0 +1,111 @@
+---
+
+#To use this script you need to have an ec2 iam role with the following permission attached to the ec2 you want to affect:
+#cloudwatch:PutMetricData
+#cloudwatch:GetMetricStatistics
+#cloudwatch:ListMetrics
+#ec2:DescribeTags
+
+#In addition you also need to have an sns topic defined to alarm on. 
+
+#Playbook is run by running `ansible-playbook CloudWatchEC2.yml --extra-vars "topic=MY_TOPIC_ARN"`
+
+
+
+#Change local host to all if  you are using ec2.py 
+#
+- hosts: localhost
+
+  tasks:
+    - name: Gather facts
+      ec2_metadata_facts:
+
+    - name: Install necessary packages
+      yum:
+        name: "{{item}}"
+        state: latest
+      with_items:
+        - perl-Switch
+        - perl-DateTime
+        - perl-Sys-Syslog
+        - perl-LWP-Protocol-https
+        - perl-Digest-SHA
+        - zip
+        - unzip
+      become: yes
+
+    - name: get monitoring scripts
+      get_url:
+        url: http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip
+        dest: /tmp/
+        mode: 0777
+      become: yes
+
+    - name: Extract monitoring Scripts into /opt
+      unarchive:
+        src: /tmp/CloudWatchMonitoringScripts-1.2.1.zip
+        dest: /opt/
+      become: yes
+
+    - name: run once to be able to create alarm
+      shell: /opt/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/
+      become: yes
+
+    - name: Install cron job to report every 5 minutes
+      cron:
+        name: "send memory statistics to cloudwatch"
+        minute: "*/5"
+        job: "/opt/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/"
+      become: yes
+
+    - name: create high CPU alarm
+      ec2_metric_alarm:
+        state: present
+        region: us-west-2
+        name: "CPU-Utilizaiton-{{ansible_ec2_instance_id}}"
+        metric: "CPUUtilization"
+        namespace: "AWS/EC2"
+        statistic: Average
+        comparison: ">="
+        threshold: 90
+        evaluation_periods: 3
+        period: 300
+        unit: "Percent"
+        description: "This will alarm when a cluster instances cpu is above 90% used"
+        dimensions: {'InstanceId':'{{ansible_ec2_instance_id}}'}
+        alarm_actions: ["{{topic}}"]
+
+    - name: create disk full alarm
+      ec2_metric_alarm:
+        state: present
+        region: us-west-2
+        name: "Disk-Space-Used-{{ansible_ec2_instance_id}}"
+        metric: "DiskSpaceUtilization"
+        namespace: "System/Linux"
+        statistic: Average
+        comparison: ">="
+        threshold: 90
+        evaluation_periods: 3
+        period: 300
+        unit: "Percent"
+        description: "This will alarm when a cluster instances disk space is above 90% used"
+        dimensions: {'InstanceId':'{{ansible_ec2_instance_id}}','Filesystem':'/dev/xvda1','MountPath':'/'}
+        alarm_actions: ["{{topic}}"]
+
+    - name: create high memory alarm
+      ec2_metric_alarm:
+        state: present
+        region: us-west-2
+        name: "Memory-Used-{{ansible_ec2_instance_id}}"
+        metric: "MemoryUtilization"
+        namespace: "System/Linux"
+        statistic: Average
+        comparison: ">="
+        threshold: 90
+        evaluation_periods: 3
+        period: 300
+        unit: "Percent"
+        description: "This will alarm when a cluster instances memory is above 90% used"
+        dimensions: {'InstanceId':'{{ansible_ec2_instance_id}}'}
+        alarm_actions: ["{{topic}}"]
+
